@@ -52,4 +52,34 @@ let updateEmployee = async (req, res) => {
         return res.json({ message: 'Internal server error while updating', err });
     }
 }
-export { getEmployee, updateEmployee };
+
+let updateEmployeeLeave = async (req, res) => {
+    let {user_id, leaves} = req.body;
+    if(!user_id){
+       return res.status(401).json({error: "Need User Id"});
+    }
+    if(!leaves){
+       return res.status(401).json({error: "Enter the leave field"});
+    }
+    try{
+
+        if(req.user.role != 'HR'){
+           return res.status(403).json({error: 'Unauthorized'});
+        }
+
+        let user_query = `SELECT * FROM users where user_id=${user_id}`;
+        let user = await pool.query(user_query);
+        if(!user){
+           return res.status(404).json({user: "User not found"});
+        }
+        let update_query = `UPDATE users SET leaves = ${leaves} WHERE user_id=${user_id} RETURNING *`;
+        let update_leave = await pool.query(update_query);
+
+       return res.status(200).json({success: 'Leave updated successfully', user: update_leave.rows[0]});
+
+    } catch(error){
+        console.log("Internal server error", error);
+       return res.status(500).json({error: "Internal server error while updating leaves"});
+    }
+}
+export { getEmployee, updateEmployee, updateEmployeeLeave };

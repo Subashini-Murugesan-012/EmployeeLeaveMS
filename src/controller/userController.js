@@ -42,7 +42,7 @@ let loginUser = async (req, res) => {
         if (!checkPassword) {
             return res.status(401).json({ message: 'Password Incorrect' });
         }
-        let jwt_token = await jwt.sign({name: user.rows[0].name, password: user.rows[0].password}, process.env.JWT_SECRET, {expiresIn: '24h'});
+        let jwt_token = await jwt.sign({name: user.rows[0].name, password: user.rows[0].password, role: user.rows[0].role}, process.env.JWT_SECRET, {expiresIn: '24h'});
         return res.json({user: user.rows[0], session_token: jwt_token});
     } catch (err) {
         console.log('Error while Login', err);
