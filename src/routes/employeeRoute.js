@@ -8,6 +8,7 @@ import express from "express";
 import {
   applyLeave,
   cancelLeaveRequest,
+  pendingLeaveRequest,
   viewLeave,
 } from "../controller/leaveController.js";
 
@@ -19,4 +20,5 @@ router.put("/updateEmployeeLeave", authenticateToken, updateEmployeeLeave);
 router.post("/applyLeave", authenticateToken, applyLeave);
 router.get("/viewLeaves", authenticateToken, viewLeave);
 router.patch("/cancelLeaveRequest", authenticateToken, cancelLeaveRequest);
+router.get("/pendingLeaveRequest", authenticateToken, pendingLeaveRequest);
 export default router;

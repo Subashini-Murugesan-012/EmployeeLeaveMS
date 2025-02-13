@@ -105,3 +105,26 @@ export let cancelLeaveRequest = async (req, res) => {
     return res.status(500).send({ error: "Internal Server error", error });
   }
 };
+
+export let pendingLeaveRequest = async (req, res) => {
+  if (req.user.role != "Manager") {
+    return res.status(403).json({ message: "Unauthorized" });
+  }
+  try {
+    let pending_leaves = await pool.query(
+      `SELECT * FROM Leave where leave_status='Pending';`
+    );
+    if (pending_leaves.rowCount == 0) {
+      return res.status(200).send({ data: "No Pending Leave Requests" });
+    }
+    return res.status(200).send({
+      data: "Pending Leave Requests",
+      leave_requests: pending_leaves.rows,
+    });
+  } catch (error) {
+    console.log("Internal Server Error", error);
+    return res
+      .status(500)
+      .send({ data: "Internal server error", error: error });
+  }
+};
