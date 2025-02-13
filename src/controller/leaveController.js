@@ -2,7 +2,6 @@ import { pool } from "../config/db.js";
 
 const TOTAL_LEAVES = 12;
 
-
 export let applyLeave = async (req, res) => {
   let { user_id, req_leave, reason } = req.body;
   if (!user_id) {
@@ -20,7 +19,8 @@ export let applyLeave = async (req, res) => {
     }
 
     let user_in_leave = await pool.query(
-      `select * from leave where user_id=$1 and leave_status= 'Approved'`, [user_id]
+      `select * from leave where user_id=$1 and leave_status= 'Approved'`,
+      [user_id]
     );
     let balance_leaves = 0;
     if (user_in_leave) {
@@ -30,15 +30,37 @@ export let applyLeave = async (req, res) => {
     }
 
     let leave_query = await pool.query(
-      `INSERT INTO leave (user_id, req_leave, reason, total_leaves, balance_leaves) VALUES ($1, $2, $3, $4, $5);`,
-      [user_id, req_leave, reason, TOTAL_LEAVES, balance_leaves]
+      `INSERT INTO leave (user_id, req_leave, reason, total_leaves, balance_leaves, leave_status) VALUES ($1, $2, $3, $4, $5, $6);`,
+      [user_id, req_leave, reason, TOTAL_LEAVES, balance_leaves, "Pending"]
     );
     return res
       .status(200)
       .send({ data: "Leave successfully applied", leave: leave_query.rows[0] });
   } catch (error) {
-    console.log(
-        "Internal server error", error);
+    console.log("Internal server error", error);
     return res.status(500).send({ error: "Internal Server Error" });
+  }
+};
+
+export let viewLeave = async (req, res) => {
+  let { user_id } = req.body;
+  if (!user_id) {
+    return res.status(401).send({ data: "Need UserId" });
+  }
+  if (req.user.user_id != user_id) {
+    return res.status(403).send({ data: "Unauthorized" });
+  }
+  try {
+    let user = await pool.query(`SELECT * FROM users where user_id=${user_id}`);
+    if (user.rowCount == 0) {
+      return res.status(404).send({ data: "User not found" });
+    }
+    let leaves = await pool.query(
+      `SELECT * FROM leave where user_id=${user_id}`
+    );
+    return res.status(200).send({ data: leaves.rows });
+  } catch (error) {
+    console.log("Internal server error", error);
+    return res.status(500).send({ data: "Internal server error", error });
   }
 };
