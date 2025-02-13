@@ -22,26 +22,10 @@ export let applyLeave = async (req, res) => {
       `select * from leave where user_id=$1 and leave_status= 'Approved'`,
       [user_id]
     );
-    let user_leaves = 0;
-    let balance_leaves = TOTAL_LEAVES;
-    if (user_in_leave) {
-      user_in_leave.rows.forEach((entry) => {
-        user_leaves += entry.user_leaves;
-        balance_leaves = TOTAL_LEAVES - entry.balance_leaves;
-      });
-    }
 
     let leave_query = await pool.query(
-      `INSERT INTO leave (user_id, req_leave, reason, total_leaves, user_leaves, leave_status, balance_leaves) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-      [
-        user_id,
-        req_leave,
-        reason,
-        TOTAL_LEAVES,
-        user_leaves,
-        "Pending",
-        balance_leaves,
-      ]
+      `INSERT INTO leave (user_id, req_leave, reason, total_leaves, leave_status) VALUES ($1, $2, $3, $4, $5);`,
+      [user_id, req_leave, reason, TOTAL_LEAVES, "Pending"]
     );
     return res
       .status(200)
@@ -159,16 +143,63 @@ export let approveLeaveRequest = async (req, res) => {
         .status(400)
         .send({ data: "The Leave is not in Pending Status" });
     }
-    let approve_query = await pool.query(
-      `Update Leave set leave_status='Approved' where leave_id='${leave_id}'`
+    let used_leaves_query = await pool.query(
+      `select * from leave where user_id=${leave_query.rows[0].user_id} and leave_status ='Approved'`
     );
-    return res
-      .status(200)
-      .send({ message: "Leave Request Approved", data: approve_query.rows[0] });
+    let used_leaves = leave_query.rows[0].req_leave;
+    used_leaves_query.rows.forEach((used_lvs) => {
+      used_leaves += used_lvs.used_leaves;
+    });
+
+    let balance_leaves = TOTAL_LEAVES - used_leaves;
+    let approve_query = await pool.query(
+      `Update Leave set leave_status='Approved', used_leaves=${used_leaves}, balance_leaves=${balance_leaves} where leave_id='${leave_id}'`
+    );
+    return res.status(200).json({
+      approved_leave: approve_query.rows[0],
+      message: "Leave Approved",
+    });
   } catch (error) {
     console.log("Internal Server Error", error);
     return res
       .status(500)
       .send({ data: "Internal Server Error", error: error });
+  }
+};
+
+export let rejectLeaveRequest = async (req, res) => {
+  let { leave_id } = req.params;
+  let { rejection_reason } = req.body;
+  if (!rejection_reason) {
+    return res.status(400).send({ message: "Need Rejection Reason" });
+  }
+  if (!leave_id) {
+    return res.status(400).send({ message: "Need LeaveId" });
+  }
+  if (req.user.role != "Manager") {
+    return res.status(403).send({ data: "Unauthorized" });
+  }
+  try {
+    let leave_query = await pool.query(
+      `select * from leave where leave_id='${leave_id}'`
+    );
+    if (leave_query.rowCount == 0) {
+      return res.status(404).send({ message: "Leave not found" });
+    }
+    if (leave_query.rows[0].leave_status != "Pending") {
+      return res
+        .status(400)
+        .send({ message: "Cannot reject the non-pending Request" });
+    }
+    let reject_query = await pool.query(
+      `update leave set leave_status='Rejected', rejection_reason='${rejection_reason}' where leave_id='${leave_id}' returning *`
+    );
+    return res.status(200).send({
+      message: "Rejected Successfully",
+      rejected_req: reject_query.rows[0],
+    });
+  } catch (error) {
+    console.log("Internal Server Error", error);
+    return res.status(500).json({ error: "Internal Server Error", error });
   }
 };

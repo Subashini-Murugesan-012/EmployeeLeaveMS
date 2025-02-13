@@ -10,6 +10,7 @@ import {
   approveLeaveRequest,
   cancelLeaveRequest,
   pendingLeaveRequest,
+  rejectLeaveRequest,
   viewLeave,
 } from "../controller/leaveController.js";
 
@@ -26,5 +27,10 @@ router.patch(
   "/approveLeaveRequest/:leave_id",
   authenticateToken,
   approveLeaveRequest
+);
+router.patch(
+  "/rejectLeaveRequest/:leave_id",
+  authenticateToken,
+  rejectLeaveRequest
 );
 export default router;
