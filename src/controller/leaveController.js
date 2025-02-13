@@ -64,3 +64,44 @@ export let viewLeave = async (req, res) => {
     return res.status(500).send({ data: "Internal server error", error });
   }
 };
+
+export let cancelLeaveRequest = async (req, res) => {
+  let { leave_id, user_id } = req.body;
+  if (!leave_id || !user_id) {
+    return res
+      .status(401)
+      .send({ data: "Need to fill all the required fields" });
+  }
+  if (req.user.user_id != user_id) {
+    return res.status(403).json({ message: "Unauthorized" });
+  }
+  try {
+    let user = await pool.query(
+      `SELECT * FROM users where user_id=${user_id};`
+    );
+    if (!user) {
+      return res.status(400).json({ message: "User Not found" });
+    }
+    let leave = await pool.query(
+      `SELECT * FROM Leave where leave_id ='${leave_id}' and user_id=${user_id}`
+    );
+    if (leave.rows == 0) {
+      return res.status(404).json({ message: "Leave Not found" });
+    }
+    if (leave?.rows[0].leave_status != "Pending") {
+      return res
+        .status(405)
+        .json({ data: "You cannot cancel the progressed Leave Request" });
+    }
+    let update_leave = await pool.query(
+      `UPDATE Leave set leave_status='Cancelled' where leave_id='${leave_id}' returning * ;`
+    );
+    return res.status(200).json({
+      message: "Leave Request Cancelled",
+      cancelled_leave: update_leave.rows[0],
+    });
+  } catch (error) {
+    console.log("Internal Server Error", error);
+    return res.status(500).send({ error: "Internal Server error", error });
+  }
+};

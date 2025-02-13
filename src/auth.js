@@ -8,7 +8,6 @@ let authenticateToken = async (req, res, next) => {
   }
   try {
     let verified = jwt.verify(token.split(" ")[1], process.env.JWT_SECRET);
-    console.log("Verified", verified);
     req.user = verified;
     next();
   } catch (err) {
