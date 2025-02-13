@@ -22,16 +22,26 @@ export let applyLeave = async (req, res) => {
       `select * from leave where user_id=$1 and leave_status= 'Approved'`,
       [user_id]
     );
-    let balance_leaves = 0;
+    let user_leaves = 0;
+    let balance_leaves = TOTAL_LEAVES;
     if (user_in_leave) {
       user_in_leave.rows.forEach((entry) => {
-        balance_leaves += entry.balance_leaves;
+        user_leaves += entry.user_leaves;
+        balance_leaves = TOTAL_LEAVES - entry.balance_leaves;
       });
     }
 
     let leave_query = await pool.query(
-      `INSERT INTO leave (user_id, req_leave, reason, total_leaves, balance_leaves, leave_status) VALUES ($1, $2, $3, $4, $5, $6);`,
-      [user_id, req_leave, reason, TOTAL_LEAVES, balance_leaves, "Pending"]
+      `INSERT INTO leave (user_id, req_leave, reason, total_leaves, user_leaves, leave_status, balance_leaves) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+      [
+        user_id,
+        req_leave,
+        reason,
+        TOTAL_LEAVES,
+        user_leaves,
+        "Pending",
+        balance_leaves,
+      ]
     );
     return res
       .status(200)
@@ -126,5 +136,39 @@ export let pendingLeaveRequest = async (req, res) => {
     return res
       .status(500)
       .send({ data: "Internal server error", error: error });
+  }
+};
+
+export let approveLeaveRequest = async (req, res) => {
+  let { leave_id } = req.params;
+  if (!leave_id) {
+    return res.status(404).send({ data: "Need Leave Id" });
+  }
+  if (req.user.role != "Manager") {
+    return res.status(403).send({ data: "Unauthorized" });
+  }
+  try {
+    let leave_query = await pool.query(
+      `select * from Leave where leave_id='${leave_id}'`
+    );
+    if (leave_query.rowCount == 0) {
+      return res.status(404).send({ data: "Leave Not found" });
+    }
+    if (leave_query.rows[0].leave_status != "Pending") {
+      return res
+        .status(400)
+        .send({ data: "The Leave is not in Pending Status" });
+    }
+    let approve_query = await pool.query(
+      `Update Leave set leave_status='Approved' where leave_id='${leave_id}'`
+    );
+    return res
+      .status(200)
+      .send({ message: "Leave Request Approved", data: approve_query.rows[0] });
+  } catch (error) {
+    console.log("Internal Server Error", error);
+    return res
+      .status(500)
+      .send({ data: "Internal Server Error", error: error });
   }
 };
