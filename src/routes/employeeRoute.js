@@ -9,6 +9,7 @@ import {
   applyLeave,
   approveLeaveRequest,
   cancelLeaveRequest,
+  getLeaveBalance,
   pendingLeaveRequest,
   rejectLeaveRequest,
   viewLeave,
@@ -32,5 +33,10 @@ router.patch(
   "/rejectLeaveRequest/:leave_id",
   authenticateToken,
   rejectLeaveRequest
+);
+router.get(
+  "/getLeaveBalance/:user_id/balance",
+  authenticateToken,
+  getLeaveBalance
 );
 export default router;

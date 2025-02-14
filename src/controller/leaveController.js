@@ -203,3 +203,38 @@ export let rejectLeaveRequest = async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error", error });
   }
 };
+
+export let getLeaveBalance = async (req, res) => {
+  let { user_id } = req.params;
+  if (req.user.role != "HR")
+    return res.status(403).send({ message: "Unauthorized" });
+
+  if (!user_id) return res.status(400).send({ message: "Need UserId" });
+  try {
+    let user = await pool.query(`select * from users where user_id=${user_id}`);
+    if (user.rowCount == 0) {
+      return res.status(404).json({ message: "NO User Found" });
+    }
+    let leaves = await pool.query(
+      `select * from leave where user_id=${user_id} and leave_status='Approved'`
+    );
+    let leave_balance = TOTAL_LEAVES,
+      used_leave = 0;
+    console.log(leaves.rows);
+    leaves.rows.forEach((leave) => {
+      leave_balance -= leave.req_leave;
+      used_leave += leave.req_leave;
+    });
+    return res.status(200).send({
+      user: user.rows[0],
+      leave_balance: leave_balance,
+      used_leave: used_leave,
+      message: "Queried result",
+    });
+  } catch (err) {
+    console.log("Internal Server Error", err);
+    return res
+      .status(500)
+      .send({ message: "Internal Server Error", error: err });
+  }
+};
