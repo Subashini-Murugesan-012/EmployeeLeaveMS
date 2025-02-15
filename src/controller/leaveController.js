@@ -1,4 +1,7 @@
 import { pool } from "../config/db.js";
+import fs, { existsSync } from "fs";
+import { Parser } from "json2csv";
+import moment from "moment";
 
 const TOTAL_LEAVES = 12;
 
@@ -15,7 +18,7 @@ export let applyLeave = async (req, res) => {
     console.log(user_id, "user_id");
     let user = await pool.query(`select * from users where user_id=${user_id}`);
     if (!user) {
-      return res.send({ message: "User not found" });
+      return res.status(404).send({ message: "User not found" });
     }
 
     let user_in_leave = await pool.query(
@@ -236,5 +239,84 @@ export let getLeaveBalance = async (req, res) => {
     return res
       .status(500)
       .send({ message: "Internal Server Error", error: err });
+  }
+};
+
+export let getLeaveReport = async (req, res) => {
+  let { user_id, leave_status } = req.body;
+  if (req.user.role != "HR")
+    return res.status(403).send({ message: "Unauthorized" });
+  try {
+    let fields = [];
+    let values = [];
+    let index = 1;
+    let query = "";
+
+    if (user_id) {
+      if (fields < 1) {
+        fields.push(` where user_id = $${index++}`);
+      } else {
+        fields.push(`and user_id = $${index++}`);
+      }
+
+      values.push(user_id);
+    }
+    if (leave_status) {
+      if (fields < 1) {
+        fields.push(` where leave_status = $${index++}`);
+      } else {
+        fields.push(`and leave_status = $${index++}`);
+      }
+      values.push(leave_status);
+    }
+    console.log(fields.length, values.length);
+    if (!fields.length == 0 && !values.length == 0) {
+      query = `select * from leave ${fields.join(" ")}`;
+    } else {
+      query = ` select * from leave `;
+    }
+
+    let leave_reports = await pool.query(query, values);
+
+    const csv_parser = new Parser({
+      defaultValue: "",
+    });
+    let csv_data = csv_parser.parse(leave_reports.rows);
+    console.log("csvdataaaaaaaa", csv_data);
+    const timestamp = moment().format("YYYYMMDD_HHmmss");
+    let file_name = `EmpReport${timestamp}.csv`;
+    const file_path = `./src/reports/${file_name}`;
+
+    try {
+      fs.writeFileSync(file_path, csv_data);
+      console.log(`File written successfully: ${file_path}`);
+    } catch (writeError) {
+      console.error("File writing error:", writeError);
+      return res.status(500).send("Failed to write report file");
+    }
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename=${file_name}`);
+
+    res.download(file_path, file_name, (err) => {
+      if (err) {
+        console.error("Download error:", err);
+        return res.status(500).send("Failed while downloading");
+      } else {
+        console.log(`Download started for file: ${file_name}`);
+      }
+    });
+    res.on();
+    res.on("finish", () => {
+      fs.unlink(file_path, (unlinkErr) => {
+        if (unlinkErr) {
+          console.error("Error deleting file:", unlinkErr);
+        } else {
+          console.log(`File deleted: ${file_path}`);
+        }
+      });
+    });
+  } catch (error) {
+    console.log("Internal Server Error", error);
+    return res.status(500).send("Internal server error");
   }
 };
