@@ -2,8 +2,15 @@ import { pool } from "../config/db.js";
 import fs, { existsSync } from "fs";
 import { Parser } from "json2csv";
 import moment from "moment";
+import SibApiV3Sdk from "sib-api-v3-sdk";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const TOTAL_LEAVES = 12;
+const client = SibApiV3Sdk.ApiClient.instance;
+const apiKey = client.authentications["api-key"];
+apiKey.apiKey = process.env.BREVO_API_KEY;
 
 export let applyLeave = async (req, res) => {
   let { user_id, req_leave, reason } = req.body;
@@ -27,9 +34,20 @@ export let applyLeave = async (req, res) => {
     );
 
     let leave_query = await pool.query(
-      `INSERT INTO leave (user_id, req_leave, reason, total_leaves, leave_status) VALUES ($1, $2, $3, $4, $5);`,
+      `INSERT INTO leave (user_id, req_leave, reason, total_leaves, leave_status) VALUES ($1, $2, $3, $4, $5) returning *;`,
       [user_id, req_leave, reason, TOTAL_LEAVES, "Pending"]
     );
+
+    await pool.query(
+      `INSERT INTO audit_logs (action, leave_id, performed_by, new_data)
+       VALUES ('created', $1, $2, $3)`,
+      [
+        leave_query.rows[0].leave_id,
+        user_id,
+        JSON.stringify(leave_query.rows[0]),
+      ]
+    );
+
     return res
       .status(200)
       .send({ data: "Leave successfully applied", leave: leave_query.rows[0] });
@@ -82,6 +100,7 @@ export let cancelLeaveRequest = async (req, res) => {
     let leave = await pool.query(
       `SELECT * FROM Leave where leave_id ='${leave_id}' and user_id=${user_id}`
     );
+
     if (leave.rows == 0) {
       return res.status(404).json({ message: "Leave Not found" });
     }
@@ -92,6 +111,16 @@ export let cancelLeaveRequest = async (req, res) => {
     }
     let update_leave = await pool.query(
       `UPDATE Leave set leave_status='Cancelled' where leave_id='${leave_id}' returning * ;`
+    );
+    await pool.query(
+      `INSERT INTO audit_logs (action, leave_id, performed_by, old_data, new_data)
+       VALUES ('cancel', $1, $2, $3, $4)`,
+      [
+        leave_id,
+        req.user.user_id,
+        JSON.stringify(leave.rows[0]),
+        JSON.stringify(update_leave.rows[0]),
+      ]
     );
     return res.status(200).json({
       message: "Leave Request Cancelled",
@@ -149,6 +178,10 @@ export let approveLeaveRequest = async (req, res) => {
     let used_leaves_query = await pool.query(
       `select * from leave where user_id=${leave_query.rows[0].user_id} and leave_status ='Approved'`
     );
+    let user_email_query = await pool.query(
+      `select email from users join leave on leave.user_id = users.user_id`
+    );
+    console.log(user_email_query.rows[0]);
     let used_leaves = leave_query.rows[0].req_leave;
     used_leaves_query.rows.forEach((used_lvs) => {
       used_leaves += used_lvs.used_leaves;
@@ -157,6 +190,21 @@ export let approveLeaveRequest = async (req, res) => {
     let balance_leaves = TOTAL_LEAVES - used_leaves;
     let approve_query = await pool.query(
       `Update Leave set leave_status='Approved', used_leaves=${used_leaves}, balance_leaves=${balance_leaves} where leave_id='${leave_id}'`
+    );
+    await pool.query(
+      `INSERT INTO audit_logs (action, leave_id, performed_by, old_data, new_data)
+       VALUES ('approve', $1, $2, $3, $4)`,
+      [
+        leave_id,
+        req.user.user_id,
+        JSON.stringify(leave_query.rows[0]),
+        JSON.stringify(approve_query.rows[0]),
+      ]
+    );
+    await sendMail(
+      user_email_query.rows[0].email,
+      "Leave Approved",
+      "Your leave request has been approved."
     );
     return res.status(200).json({
       approved_leave: approve_query.rows[0],
@@ -194,8 +242,27 @@ export let rejectLeaveRequest = async (req, res) => {
         .status(400)
         .send({ message: "Cannot reject the non-pending Request" });
     }
+    let user_email_query = await pool.query(
+      `select email from users join leave on leave.user_id = users.user_id`
+    );
+    console.log(user_email_query.rows[0]);
     let reject_query = await pool.query(
       `update leave set leave_status='Rejected', rejection_reason='${rejection_reason}' where leave_id='${leave_id}' returning *`
+    );
+    await pool.query(
+      `INSERT INTO audit_logs (action, leave_id, performed_by, old_data, new_data)
+       VALUES ('cancel', $1, $2, $3, $4)`,
+      [
+        leave_id,
+        req.user.user_id,
+        JSON.stringify(leave_query.rows[0]),
+        JSON.stringify(reject_query.rows[0]),
+      ]
+    );
+    await sendMail(
+      user_email_query.rows[0].email,
+      "Leave Rejected",
+      `Your leave request has been reject due to ${rejection_reason}.`
     );
     return res.status(200).send({
       message: "Rejected Successfully",
@@ -282,7 +349,6 @@ export let getLeaveReport = async (req, res) => {
       defaultValue: "",
     });
     let csv_data = csv_parser.parse(leave_reports.rows);
-    console.log("csvdataaaaaaaa", csv_data);
     const timestamp = moment().format("YYYYMMDD_HHmmss");
     let file_name = `EmpReport${timestamp}.csv`;
     const file_path = `./src/reports/${file_name}`;
@@ -318,5 +384,22 @@ export let getLeaveReport = async (req, res) => {
   } catch (error) {
     console.log("Internal Server Error", error);
     return res.status(500).send("Internal server error");
+  }
+};
+
+let sendMail = async (to, subject, text) => {
+  try {
+    const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+    const sendSmptMail = new SibApiV3Sdk.SendSmtpEmail();
+
+    sendSmptMail.sender = { name: "HR", email: "hr@gmail.com" };
+    sendSmptMail.to = [{ email: to }];
+    sendSmptMail.subject = subject;
+    sendSmptMail.textContent = text;
+
+    await apiInstance.sendTransacEmail(sendSmptMail);
+    console.log("Mail sent successfully");
+  } catch (error) {
+    console.log("Error while sending email", error);
   }
 };
