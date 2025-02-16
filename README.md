@@ -13,4 +13,4 @@ A Node.js application with PostgreSQL to manage employee leave requests, approva
 
 Clone the repository:
 ```sh
-git clone https://github.com/yourusername/employee-leave-management.git
+git clone https://github.com/Subashini-Murugesan-012/EmployeeLeaveMS.git
