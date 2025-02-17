@@ -1,0 +1,3 @@
+"leave_id","user_id","req_leave","total_leaves","balance_leaves","used_leaves","leave_status","reason","rejection_reason"
+"ca9d33ef-aacb-4ce8-b45f-03ce9d655d52",2,2,12,10,2,"Approved","As I'm going for the trip",
+"d665dddb-92c3-4813-9892-8b39c1701782",2,1,12,-36,48,"Approved","As I'm going for the temple",

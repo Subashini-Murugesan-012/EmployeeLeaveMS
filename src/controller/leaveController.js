@@ -371,7 +371,6 @@ export let getLeaveReport = async (req, res) => {
         console.log(`Download started for file: ${file_name}`);
       }
     });
-    res.on();
     res.on("finish", () => {
       fs.unlink(file_path, (unlinkErr) => {
         if (unlinkErr) {

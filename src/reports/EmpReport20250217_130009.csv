@@ -1,0 +1,7 @@
+"leave_id","user_id","req_leave","total_leaves","balance_leaves","used_leaves","leave_status","reason","rejection_reason"
+"4250c866-c571-46da-8f79-afa1f767697d",2,2,12,0,,"Cancelled","As I'm going for the trip",
+"ca9d33ef-aacb-4ce8-b45f-03ce9d655d52",2,2,12,10,2,"Approved","As I'm going for the trip",
+"06f70e85-f09d-4e1f-a2b2-c9fef9998911",2,1,12,,,"Rejected","As I'm going for the temple","More works, need your dependency"
+"d665dddb-92c3-4813-9892-8b39c1701782",2,1,12,-36,48,"Approved","As I'm going for the temple",
+"c42d2ac4-a78b-4284-9307-bc6d17c865eb",2,1,12,,,"Pending","As I'm going for the park",
+"f7d92ab7-3a75-42b2-9588-fede37be7eeb",2,1,12,,,"Cancelled","As I'm going for the park",
