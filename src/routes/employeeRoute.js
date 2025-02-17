@@ -9,6 +9,7 @@ import {
   applyLeave,
   approveLeaveRequest,
   cancelLeaveRequest,
+  getAuditReport,
   getLeaveBalance,
   getLeaveReport,
   pendingLeaveRequest,
@@ -41,4 +42,5 @@ router.get(
   getLeaveBalance
 );
 router.get("/getLeaveReport", authenticateToken, getLeaveReport);
+router.get("/getAuditReport", authenticateToken, getAuditReport);
 export default router;

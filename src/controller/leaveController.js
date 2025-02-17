@@ -387,6 +387,21 @@ export let getLeaveReport = async (req, res) => {
   }
 };
 
+export let getAuditReport = async (req, res) => {
+  if (req.user.role != "HR") {
+    return res.status(403).json({ message: "Unauthorized" });
+  }
+  try {
+    let audit_report = await pool.query(`select * from audit_logs`);
+    return res.status(200).json({
+      message: "Audit Reports are below:",
+      audit_logs: audit_report.rows,
+    });
+  } catch (error) {
+    console.log("Internal Server Error", error);
+    return res.status(500).json({ error: "Internal Server Error", error });
+  }
+};
 let sendMail = async (to, subject, text) => {
   try {
     const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
